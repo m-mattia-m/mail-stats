@@ -96,13 +96,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # Registers the QEMU binfmt handlers itself instead of relying on the
+      # runner's apt packages: on Ubuntu 26.04 qemu-user-static is only a
+      # virtual package and `apt-get install` refuses to pick a provider.
       - name: Set up QEMU for cross-arch emulation
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y qemu-user-static
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
 
       - name: Install buildah
         run: |
+          sudo apt-get update
           sudo apt-get install -y buildah
           buildah version
 
