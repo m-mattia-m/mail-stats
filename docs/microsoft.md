@@ -24,6 +24,32 @@ time (Microsoft's default is 90 days).
 Setting it up has three parts: register an app with Microsoft (once, for all
 your accounts), create the context, log in.
 
+## Do I really need the Entra/Azure setup for a private Hotmail address?
+
+Yes – also for a plain personal address like `@hotmail.ch`. The chain is:
+
+1. Microsoft only accepts **OAuth2** for IMAP on personal accounts; passwords
+   and app passwords are rejected.
+2. Every app that asks Microsoft for an OAuth2 token must identify itself
+   with a **client ID**. Client IDs only come from an **app registration**.
+3. App registrations can only be created **inside a directory** (tenant). A
+   personal Microsoft account has none, so you create one with a free Azure
+   account (see [step 1](#do-you-have-a-directory)).
+
+There is no shared mail-stats client ID, and `oauth2.tokenCommand` doesn't
+avoid this either: external token tools (oama, `mutt_oauth2.py`, …) need a
+client ID for exactly the same reason.
+
+The good news: it's a **one-time** setup of about 10 minutes, and **one**
+registration covers all your Microsoft addresses. Nothing in it is billed
+(Azure may ask for a credit card only to verify your identity).
+
+**Why not reuse another app's client ID?** Some guides tell you to "borrow"
+the public client ID of an existing mail program (often Thunderbird's). That
+works technically, but you then sign in *as that program*, which is against
+Microsoft's terms and can be blocked by Microsoft or the app's vendor at any
+time. mail-stats doesn't do this and it isn't recommended.
+
 ## 1. Register an app with Microsoft (one time)
 
 OAuth2 needs a **client ID** – the ID of an "app registration" that says
@@ -66,8 +92,11 @@ App registrations live in a Microsoft Entra **directory** (tenant).
    `clientId`. It is not a secret.
 5. Open **Authentication** and set **Allow public client flows** to **Yes**
    (in some portal versions it's under *Advanced settings*, in newer ones on
-   the *Settings* tab). **Save.** Without this, the device-code login fails
-   with `AADSTS7000218` / "client_assertion or client_secret required".
+   the *Settings* tab). **Save.** Without this, `mail-stats auth login` fails
+   with `AADSTS70002: … must be marked as 'mobile'` (or `AADSTS7000218`).
+   The change can take a minute to apply. If the error persists, also click
+   **Add a platform → Mobile and desktop applications**, tick
+   `https://login.microsoftonline.com/common/oauth2/nativeclient` and save.
 6. Optional but tidy: **API permissions → Add a permission → Microsoft Graph →
    Delegated permissions**, add **IMAP.AccessAsUser.All** and
    **offline_access**. mail-stats requests these scopes anyway, so personal
@@ -219,7 +248,7 @@ Check with `mail-stats get folders --context hotmail`.
 | `context "hotmail" is not logged in: run mail-stats auth login hotmail` | No token stored yet (or you logged out). |
 | `auth oauth2 needs oauth2.clientId … or oauth2.tokenCommand` | Add `--oauth2-client-id`. |
 | `start device login: … AADSTS700016` / `unauthorized_client` | Client ID wrong, or the registration's *supported account types* don't include this kind of account (e.g. "organizational only" with a Hotmail address). |
-| `device login: … AADSTS7000218` | **Allow public client flows** is not enabled (step 1.5). |
+| `start device login: … AADSTS70002: The provided client is not supported for this feature. The client application must be marked as 'mobile.'` or `device login: … AADSTS7000218` | **Allow public client flows** is not enabled (step 1.5): *Authentication → Allow public client flows → Yes → Save*, wait a minute, retry. If it persists, also add the platform *Mobile and desktop applications* with the redirect URI `https://login.microsoftonline.com/common/oauth2/nativeclient`. |
 | `device login: … authorization_declined` | You clicked *Cancel* on the consent screen – run `auth login` again. |
 | `device login: … expired_token` | The code wasn't entered within 15 minutes – run `auth login` again. |
 | `AADSTS65001` / consent required | A work tenant requires admin consent: ask your admin to *Grant admin consent* for the registration. |

@@ -1,10 +1,15 @@
-.PHONY: build test cover cover-html image clean
+.PHONY: build install test cover cover-html image clean
 
 # Packages that count towards coverage - mirrors ci.yaml.
 COVER_PKGS = $(shell go list ./... | grep -Ev '/(cmd|imaptest|oauthtest)')
 
 build:
 	go build -o bin/mail-stats ./cmd/mail-stats
+
+# Installs the binary from this checkout (including uncommitted changes) to
+# $GOBIN / $GOPATH/bin. `go install ...@latest` builds what's pushed instead.
+install:
+	go install ./cmd/mail-stats
 
 # Quick local test run, no coverage.
 test:

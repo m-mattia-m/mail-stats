@@ -11,7 +11,12 @@ go install github.com/m-mattia-m/mail-stats/cmd/mail-stats@latest
 # From source
 git clone https://github.com/m-mattia-m/mail-stats && cd mail-stats
 make build            # -> bin/mail-stats
+make install          # -> $GOPATH/bin/mail-stats (usually ~/go/bin)
 ```
+
+`go install …@latest` builds the latest code **pushed to GitHub**. When you
+work on mail-stats locally, use `make install` (or `go install ./cmd/mail-stats`)
+in the checkout so your installed binary includes your local changes.
 
 Prebuilt binaries for Linux, macOS and Windows (amd64/arm64) are attached to
 every [GitHub release](https://github.com/m-mattia-m/mail-stats/releases), and
