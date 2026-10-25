@@ -1,0 +1,49 @@
+# Dependabot opens its PRs on a schedule (Monday, UTC). Minor/patch updates
+# are grouped per ecosystem so a week produces a handful of PRs instead of
+# dozens; major updates are excluded from the groups and arrive as their own
+# PRs (and are never auto-merged, see workflows/dependabot-auto-merge.yaml).
+#
+# The commit-message prefix drives semantic-release (workflows/release.yaml,
+# every Tuesday):
+#   fix(deps)  -> patch release (Go modules and container base images ship
+#                 inside the binary/image)
+#   chore(ci)  -> no release (CI-only changes)
+
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "fix(deps)"
+    groups:
+      go-modules:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # Picks up the builder/runtime base images in .container/Containerfile.
+  - package-ecosystem: "docker"
+    directory: ".container"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "fix(deps)"
+    groups:
+      container-base-images:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      github-actions:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]

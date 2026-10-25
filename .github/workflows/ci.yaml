@@ -1,0 +1,126 @@
+name: CI – Build, Test & Coverage
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'develop/**'
+      - 'feat/**'
+      - 'chore/**'
+      - 'docs/**'
+      - 'fix/**'
+      - 'refactor/**'
+      - 'style/**'
+      - 'test/**'
+      # Dependabot's own branch prefix - without this, CI never runs on its
+      # PRs, so the "require status checks" branch rule can never be
+      # satisfied and auto-merge hangs forever waiting on a check that was
+      # never reported.
+      - 'dependabot/**'
+
+env:
+  IMAGE_NAME: mail-stats
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "these files are not gofmt'ed:"; echo "$unformatted"; exit 1
+          fi
+
+      - name: Verify go.mod is tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      # cmd only calls cli.Execute and imaptest is test-only infrastructure,
+      # so neither counts towards coverage (like mocks in LinkShelf).
+      - name: Run tests
+        run: |
+          go list ./... | grep -Ev '/(cmd|imaptest)' | xargs go test -race -covermode=atomic -coverprofile=coverage.out
+
+      - name: Coverage summary
+        run: |
+          echo "-------------------------------"
+          go tool cover -func=coverage.out | tee coverage.txt
+          echo "-------------------------------"
+          grep total: coverage.txt
+
+      - name: check test coverage
+        uses: vladopajic/go-test-coverage@v2
+        with:
+          profile: coverage.out
+          threshold-total: 80
+          debug: true
+
+          git-token: ${{ github.ref_name == 'main' && secrets.GITHUB_TOKEN || '' }}
+          git-branch: badges
+          git-file-name: .badges/main/coverage.svg
+
+  # Builds the release image for both architectures without pushing it, so a
+  # broken base-image bump (Dependabot's docker ecosystem) or a Containerfile
+  # change can't auto-merge unnoticed. Mirrors image.yaml.
+  container:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up QEMU for cross-arch emulation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static
+
+      - name: Install buildah
+        run: |
+          sudo apt-get install -y buildah
+          buildah version
+
+      - name: Build multi-arch OCI image (not pushed)
+        run: |
+          buildah manifest create "$IMAGE_NAME"
+
+          for arch in amd64 arm64; do
+            buildah build \
+              --arch "$arch" \
+              --os linux \
+              --manifest "$IMAGE_NAME" \
+              --file .container/Containerfile \
+              --build-arg "VERSION=ci-${GITHUB_SHA::7}" \
+              .
+          done
+
+      - name: Smoke test the image
+        run: |
+          buildah from --name smoke "$IMAGE_NAME"
+          buildah run smoke -- mail-stats version

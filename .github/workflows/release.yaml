@@ -1,0 +1,176 @@
+name: Release – Plan, Test, Version & Publish
+
+# The version is derived by semantic-release from the Conventional Commits on
+# main (see .releaserc.json), never picked by hand. A release runs once a week
+# (Tuesday, the day after Dependabot opens its Monday PRs, so the auto-merged
+# fix(deps) bumps are on main by then) and can be started manually. If nothing
+# releasable was merged since the last tag, the run stops after the plan job.
+on:
+  schedule:
+    - cron: '0 6 * * 2'
+  workflow_dispatch:
+
+# Runs must not overlap (two releases would race for the same next version),
+# and a queued run must not be cancelled: it still has to pick up its commits.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # Dry run: is there anything releasable since the last tag? Saves the test
+  # suite and image build for weeks with only chore/ci/docs changes.
+  plan:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    # write, not read: semantic-release verifies push access even in a dry run.
+    permissions:
+      contents: write
+
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      version: ${{ steps.plan.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 'lts/*'
+
+      - name: Determine next version (dry run)
+        id: plan
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npx --yes semantic-release@24 --dry-run 2>&1 | tee plan.log
+          version=$(sed -n 's/.*The next release version is \(.*\)$/\1/p' plan.log | tail -1)
+          if [ -n "$version" ]; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+            echo "Next release: v$version" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "No releasable changes since the last release." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  test-and-coverage:
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        run: go build ./...
+
+      - name: Run tests
+        run: |
+          go list ./... | grep -Ev '/(cmd|imaptest)' | xargs go test -race -covermode=atomic -coverprofile=coverage.out
+
+      - name: check test coverage
+        uses: vladopajic/go-test-coverage@v2
+        with:
+          profile: coverage.out
+          threshold-total: 80
+          debug: true
+
+  # Creates the tag (vX.Y.Z) and the GitHub Release with generated notes.
+  release:
+    needs: [plan, test-and-coverage]
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 'lts/*'
+
+      - name: Create release
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npx --yes semantic-release@24 2>&1 | tee release.log
+          tag=$(sed -n 's/.*Created tag \(v[^ ]*\).*/\1/p' release.log | tail -1)
+          if [ -z "$tag" ]; then
+            echo "semantic-release did not create a tag"; exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Released $tag" >> "$GITHUB_STEP_SUMMARY"
+
+  binaries:
+    needs: release
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    env:
+      TAG: ${{ needs.release.outputs.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build binaries
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          mkdir -p dist
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+            os="${target%/*}"; arch="${target#*/}"
+            name="mail-stats_${TAG}_${os}_${arch}"
+            ext=""; [ "$os" = windows ] && ext=".exe"
+            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags="-s -w -X main.version=$TAG" -o "dist/$name/mail-stats$ext" ./cmd/mail-stats
+            tar -czf "dist/$name.tar.gz" -C "dist/$name" "mail-stats$ext"
+          done
+          (cd dist && sha256sum ./*.tar.gz > checksums.txt)
+
+      - name: Upload binaries to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$TAG" dist/*.tar.gz dist/checksums.txt
+
+  image:
+    needs: release
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/image.yaml
+    with:
+      tag: ${{ needs.release.outputs.tag }}

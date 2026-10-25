@@ -1,0 +1,46 @@
+# =========================
+# Build
+# =========================
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
+
+ARG VERSION=dev
+ARG TARGETOS
+ARG TARGETARCH
+
+ENV CGO_ENABLED=0
+ENV GOOS=$TARGETOS
+ENV GOARCH=$TARGETARCH
+
+WORKDIR /src
+
+# Cache deps
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY cmd ./cmd
+COPY internal ./internal
+
+RUN go build \
+  -trimpath \
+  -ldflags="-s -w -X main.version=${VERSION}" \
+  -o /out/mail-stats \
+  ./cmd/mail-stats
+
+# =========================
+# Runtime
+# =========================
+# alpine rather than distroless: a context's passwordCommand runs via `sh -c`.
+FROM alpine:3.24
+
+RUN apk add --no-cache ca-certificates \
+  && adduser -D -u 1001 app
+
+COPY --from=builder --chmod=755 /out/mail-stats /usr/local/bin/mail-stats
+
+# Mount your config file here, e.g. -v ~/.mail-stats:/config:ro
+ENV MAIL_STATS_CONFIG=/config/config.yaml
+
+USER 1001
+
+ENTRYPOINT ["mail-stats"]
+CMD ["get", "stats"]

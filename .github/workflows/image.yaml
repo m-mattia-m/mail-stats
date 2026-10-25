@@ -1,0 +1,82 @@
+name: Image – Build & Publish OCI image
+
+# Publishes ghcr.io/<owner>/mail-stats:<tag> and :latest.
+#
+# Runs on every pushed tag in the vX.Y.Z format, and is called by release.yaml
+# for the tags semantic-release creates: a tag pushed with GITHUB_TOKEN does
+# not trigger other workflows, so release.yaml has to call this one itself.
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag to build (vX.Y.Z)
+        required: true
+        type: string
+
+env:
+  IMAGE_NAME: mail-stats
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      IMAGE_TAG: ${{ inputs.tag || github.ref_name }}
+
+    steps:
+      # The tag filter above is a glob, so it also lets e.g. v1.0.0x through.
+      - name: Validate tag format
+        run: |
+          if ! echo "$IMAGE_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "tag '$IMAGE_TAG' is not in the format v1.0.0"; exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.IMAGE_TAG }}
+
+      - name: Set up QEMU for cross-arch emulation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static
+
+      - name: Install buildah
+        run: |
+          sudo apt-get install -y buildah
+          buildah version
+
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | buildah login --username "${{ github.actor }}" --password-stdin "$REGISTRY"
+
+      - name: Build multi-arch OCI image
+        run: |
+          buildah manifest create "$IMAGE_NAME"
+
+          for arch in amd64 arm64; do
+            buildah build \
+              --arch "$arch" \
+              --os linux \
+              --manifest "$IMAGE_NAME" \
+              --file .container/Containerfile \
+              --build-arg "VERSION=$IMAGE_TAG" \
+              --label "org.opencontainers.image.version=$IMAGE_TAG" \
+              --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+              .
+          done
+
+      - name: Push multi-arch OCI image
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          buildah manifest push --all "$IMAGE_NAME" "docker://$REGISTRY/$owner/$IMAGE_NAME:$IMAGE_TAG"
+          buildah manifest push --all "$IMAGE_NAME" "docker://$REGISTRY/$owner/$IMAGE_NAME:latest"
+          echo "Published $REGISTRY/$owner/$IMAGE_NAME:$IMAGE_TAG" >> "$GITHUB_STEP_SUMMARY"

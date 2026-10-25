@@ -1,0 +1,7 @@
+/bin/
+/dist/
+/tmp/
+coverage*.out
+coverage.txt
+.idea/
+.DS_Store
