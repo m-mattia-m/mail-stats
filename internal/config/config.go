@@ -183,9 +183,14 @@ type Getenv func(string) string
 // RunCommand runs a shell command and returns its stdout.
 type RunCommand func(command string) (string, error)
 
-// ShellCommand runs command with `sh -c`.
+// ShellCommand runs command with `sh -c`. Only stdout is captured: stdin and
+// stderr stay connected to the terminal, so a password manager can prompt
+// (e.g. `op signin`) and its error messages reach the user.
 func ShellCommand(command string) (string, error) {
-	out, err := exec.Command("sh", "-c", command).Output() //nolint:gosec // the user's own config
+	cmd := exec.Command("sh", "-c", command) //nolint:gosec // the user's own config
+	cmd.Stdin = os.Stdin
+	cmd.Stderr = os.Stderr
+	out, err := cmd.Output()
 	if err != nil {
 		return "", err
 	}

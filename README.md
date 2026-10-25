@@ -16,6 +16,19 @@ sent        3120    0.73      5.13       22.30       2015-03-04   2026-10-24
 received    48211   11.33     79.31      344.66      2015-03-02   2026-10-25
 ```
 
+## Documentation
+
+Full documentation is in [`docs/`](docs/README.md):
+[getting started](docs/getting-started.md) ·
+[commands](docs/commands.md) ·
+[contexts](docs/contexts.md) ·
+[config file](docs/configuration.md) ·
+[passwords](docs/passwords.md) ·
+[1Password CLI](docs/1password.md) ·
+[how stats are calculated](docs/statistics.md) ·
+[container](docs/container.md) ·
+[development & releases](docs/development.md)
+
 ## How mails are counted
 
 | Folder                                                        | Counted as |
