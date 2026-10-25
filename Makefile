@@ -1,7 +1,7 @@
 .PHONY: build test cover cover-html image clean
 
 # Packages that count towards coverage - mirrors ci.yaml.
-COVER_PKGS = $(shell go list ./... | grep -Ev '/(cmd|imaptest)')
+COVER_PKGS = $(shell go list ./... | grep -Ev '/(cmd|imaptest|oauthtest)')
 
 build:
 	go build -o bin/mail-stats ./cmd/mail-stats

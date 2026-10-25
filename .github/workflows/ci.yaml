@@ -59,11 +59,11 @@ jobs:
       - name: Build
         run: go build ./...
 
-      # cmd only calls cli.Execute and imaptest is test-only infrastructure,
+      # cmd only calls cli.Execute, imaptest and oauthtest are test-only fakes,
       # so neither counts towards coverage (like mocks in LinkShelf).
       - name: Run tests
         run: |
-          go list ./... | grep -Ev '/(cmd|imaptest)' | xargs go test -race -covermode=atomic -coverprofile=coverage.out
+          go list ./... | grep -Ev '/(cmd|imaptest|oauthtest)' | xargs go test -race -covermode=atomic -coverprofile=coverage.out
 
       - name: Coverage summary
         run: |

@@ -142,8 +142,18 @@ func TestEffectivePort(t *testing.T) {
 
 func TestValidate(t *testing.T) {
 	valid := Context{Name: "a", Host: "h", Username: "u"}
-	if err := valid.Validate(); err != nil {
-		t.Fatalf("valid: %v", err)
+	for _, ok := range []Context{
+		valid,
+		{Name: "a", Host: "h", Username: "u", Auth: AuthPassword},
+		{Name: "a", Host: "h", Username: "u", Auth: AuthOAuth2, OAuth2: OAuth2{ClientID: "id"}},
+		{Name: "a", Host: "h", Username: "u", Auth: AuthOAuth2, OAuth2: OAuth2{Provider: ProviderMicrosoft, TokenCommand: "cmd"}},
+	} {
+		if err := ok.Validate(); err != nil {
+			t.Fatalf("valid %+v: %v", ok, err)
+		}
+		if ok.UsesOAuth2() != (ok.Auth == AuthOAuth2) {
+			t.Errorf("UsesOAuth2(%+v) wrong", ok)
+		}
 	}
 	tests := []struct {
 		mutate func(*Context)
@@ -153,6 +163,9 @@ func TestValidate(t *testing.T) {
 		{func(c *Context) { c.Name = "" }, "missing: name"},
 		{func(c *Context) { c.Security = "ssl" }, "unknown security"},
 		{func(c *Context) { c.Port = 70000 }, "invalid port"},
+		{func(c *Context) { c.Auth = "kerberos" }, "unknown auth"},
+		{func(c *Context) { c.Auth = AuthOAuth2 }, "needs oauth2.clientId"},
+		{func(c *Context) { c.Auth, c.OAuth2 = AuthOAuth2, OAuth2{Provider: "google", ClientID: "x"} }, "unknown oauth2 provider"},
 	}
 	for _, tt := range tests {
 		c := valid

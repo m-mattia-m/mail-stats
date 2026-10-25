@@ -84,6 +84,10 @@ per week  = total / (days / 7)
 per month = total / (days / 30.436875)     # 365.2425 / 12, the average Gregorian month
 ```
 
+With several contexts (`--contexts` / `-A`), every account gets its own
+window as described above, and the `(combined)` numbers use the window from
+the oldest mail of any selected account with all their mails added together.
+
 Each period count is **at least 1**: with only 3 days of history,
 `per week = total / 1`, not `total / 0.43` – mail-stats doesn't extrapolate a
 weekly or monthly figure from a few days.

@@ -19,25 +19,33 @@ otherwise.
 `--context` only affects that single command. It never changes the current
 context; only `config use-context` does.
 
+`get stats` and `get folders` can also read **several contexts in one run**:
+`--contexts personal,work` or `-A` / `--all-contexts` for every context. That
+replaces `--context` (the two can't be combined). See
+[several accounts at once](commands.md#several-accounts-at-once).
+
 ## Lifecycle
 
 ```bash
 # Create two accounts. The first one becomes the current context automatically.
 mail-stats config set-context personal --host imap.gmail.com --username me@gmail.com \
   --password-command 'op read "op://Private/Gmail IMAP/password"'
-mail-stats config set-context work --host outlook.office365.com --username me@work.com \
+mail-stats config set-context work --host mail.example.com --username me@work.com \
   --password-env WORK_MAIL_PW
 
 mail-stats config get-contexts
-# CURRENT   NAME       HOST                    PORT   USERNAME       SECURITY
-# *         personal   imap.gmail.com          993    me@gmail.com   tls
-#           work       outlook.office365.com   993    me@work.com    tls
+# CURRENT   NAME       HOST                    PORT   USERNAME       SECURITY   AUTH
+# *         personal   imap.gmail.com          993    me@gmail.com   tls        password
+#           work       mail.example.com        993    me@work.com    tls        password
 
 mail-stats get stats                    # -> personal (current)
 mail-stats get stats --context work     # -> work, just this once
 
 mail-stats config use-context work      # switch permanently
 mail-stats config current-context       # -> work
+
+mail-stats get stats --contexts personal,work    # both accounts + combined
+mail-stats get stats -A                          # every context
 
 mail-stats config set-context work --port 1993   # update one field
 mail-stats config delete-context work            # current context is now unset

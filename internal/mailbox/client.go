@@ -22,10 +22,13 @@ const (
 
 // Account holds everything needed to log in to an IMAP server.
 type Account struct {
-	Host               string
-	Port               int
-	Username           string
-	Password           string
+	Host     string
+	Port     int
+	Username string
+	Password string
+	// AccessToken switches the login from username/password to OAuth2
+	// (AUTHENTICATE XOAUTH2), as Microsoft requires.
+	AccessToken        string
 	Security           string
 	InsecureSkipVerify bool
 	Timeout            time.Duration
@@ -78,11 +81,32 @@ func Dial(acc Account) (*Client, error) {
 			return nil, fmt.Errorf("starttls: %w", err)
 		}
 	}
-	if err := c.Login(acc.Username, acc.Password); err != nil {
+	if acc.AccessToken != "" {
+		if err := c.Authenticate(xoauth2{username: acc.Username, token: acc.AccessToken}); err != nil {
+			_ = c.Terminate()
+			return nil, fmt.Errorf("login as %s with OAuth2: %w", acc.Username, err)
+		}
+	} else if err := c.Login(acc.Username, acc.Password); err != nil {
 		_ = c.Terminate()
 		return nil, fmt.Errorf("login as %s: %w", acc.Username, err)
 	}
 	return &Client{c: c}, nil
+}
+
+// xoauth2 is the SASL XOAUTH2 mechanism used by Microsoft and Google:
+// https://learn.microsoft.com/exchange/client-developer/legacy-protocols/how-to-authenticate-an-imap-pop-smtp-application-by-using-oauth
+type xoauth2 struct {
+	username, token string
+}
+
+func (a xoauth2) Start() (string, []byte, error) {
+	return "XOAUTH2", []byte("user=" + a.username + "\x01auth=Bearer " + a.token + "\x01\x01"), nil
+}
+
+// Next answers the JSON error the server sends as challenge when the token is
+// rejected; the empty response makes it finish with the tagged NO.
+func (a xoauth2) Next([]byte) ([]byte, error) {
+	return []byte{}, nil
 }
 
 // Folders lists all folders of the account.

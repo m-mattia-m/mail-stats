@@ -210,3 +210,25 @@ func TestCollect_Errors(t *testing.T) {
 		t.Errorf("dates error = %v", err)
 	}
 }
+
+func TestDial_XOAUTH2(t *testing.T) {
+	s := imaptest.Start(t, "none", imaptest.WithXOAUTH2("good-token"))
+	s.AddFolder(t, "INBOX", time.Now())
+
+	acc := account(s, "none")
+	acc.Password = ""
+	acc.AccessToken = "good-token"
+	c, err := mailbox.Dial(acc)
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	if dates, err := c.Dates("INBOX"); err != nil || len(dates) != 1 {
+		t.Fatalf("Dates = %v, %v", dates, err)
+	}
+	_ = c.Close()
+
+	acc.AccessToken = "expired-token"
+	if _, err := mailbox.Dial(acc); err == nil || !strings.Contains(err.Error(), "login as username with OAuth2") {
+		t.Fatalf("bad token: err = %v", err)
+	}
+}

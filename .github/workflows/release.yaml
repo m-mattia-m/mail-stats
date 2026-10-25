@@ -81,7 +81,7 @@ jobs:
 
       - name: Run tests
         run: |
-          go list ./... | grep -Ev '/(cmd|imaptest)' | xargs go test -race -covermode=atomic -coverprofile=coverage.out
+          go list ./... | grep -Ev '/(cmd|imaptest|oauthtest)' | xargs go test -race -covermode=atomic -coverprofile=coverage.out
 
       - name: check test coverage
         uses: vladopajic/go-test-coverage@v2

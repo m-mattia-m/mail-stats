@@ -31,12 +31,15 @@ You need three things from your mail provider:
 |----------|------|-----------------|----------|
 | Gmail | `imap.gmail.com` | 993 / tls | an [app password](https://support.google.com/accounts/answer/185833) (needs 2-step verification), IMAP enabled in Gmail settings |
 | iCloud | `imap.mail.me.com` | 993 / tls | an [app-specific password](https://support.apple.com/en-us/102654) |
-| Outlook.com / Microsoft 365 | `outlook.office365.com` | 993 / tls | only if your tenant still allows basic auth for IMAP |
+| Hotmail / Outlook.com / Live / Microsoft 365 | `outlook.office365.com` | 993 / tls | **no password** – OAuth2 sign-in, see [Microsoft accounts](microsoft.md) |
 | Infomaniak | `mail.infomaniak.com` | 993 / tls | your mail password |
 | Proton (via Proton Mail Bridge) | `127.0.0.1` | 1143 / starttls | the Bridge password; add `--insecure-skip-verify` (self-signed cert) |
 | Anything else | see your provider's "IMAP settings" help page | usually 993 / tls | |
 
 ## 3. Store the password
+
+Microsoft accounts don't use a password: follow [Microsoft accounts](microsoft.md)
+instead of steps 3 and 4, then continue with step 5.
 
 Do **not** put the password into the config file in plain text. Either keep it
 in 1Password (recommended, see [1Password CLI](1password.md)) or in an

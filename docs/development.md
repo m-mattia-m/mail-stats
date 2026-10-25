@@ -6,9 +6,11 @@
 cmd/mail-stats/        main.go – only calls cli.Execute; version set via -ldflags
 internal/cli/          cobra command tree (get, config, version), output formatting
 internal/config/       config file, contexts, password resolution
-internal/mailbox/      IMAP client (go-imap), folder classification, Collect
+internal/mailbox/      IMAP client (go-imap, LOGIN or XOAUTH2), folder classification, Collect
+internal/oauth/        OAuth2 device-code login, token store + refresh, tokenCommand
 internal/stats/        window + averages
-internal/imaptest/     in-memory IMAP server for tests (plain, TLS, STARTTLS)
+internal/imaptest/     in-memory IMAP server for tests (plain, TLS, STARTTLS, XOAUTH2)
+internal/oauthtest/    fake Microsoft identity platform (device code + refresh) for tests
 .container/            Containerfile
 .github/               workflows + Dependabot
 docs/                  this documentation
@@ -29,7 +31,7 @@ certificate for the TLS modes), and the CLI tests run the real command tree
 against it with a temporary config file.
 
 CI fails if total coverage drops below **80%**. `cmd/` (a one-line `main`)
-and `internal/imaptest` (test infrastructure) are not counted, the same way
+and `internal/imaptest` / `internal/oauthtest` (test fakes) are not counted, the same way
 LinkShelf leaves out mocks.
 
 ## Commit messages

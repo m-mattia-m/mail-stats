@@ -56,6 +56,20 @@ so the password doesn't appear in the process list. Contexts with
 
 See [1Password](1password.md) for the `op` details.
 
+## Microsoft / OAuth2 accounts
+
+OAuth2 tokens live in `/config/tokens/` and are **rewritten on every refresh**,
+so mount the config directory read-write and log in once (interactively, so
+you see the code):
+
+```bash
+podman run --rm -it -v ~/.mail-stats:/config ghcr.io/m-mattia-m/mail-stats:latest auth login hotmail
+podman run --rm -v ~/.mail-stats:/config ghcr.io/m-mattia-m/mail-stats:latest get stats --context hotmail
+```
+
+Logging in on the host (`mail-stats auth login hotmail`) works too – the
+container uses the same `~/.mail-stats/tokens/` files.
+
 ## Build it yourself
 
 ```bash

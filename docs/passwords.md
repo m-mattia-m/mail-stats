@@ -1,5 +1,9 @@
 # Passwords
 
+Microsoft accounts (Hotmail, Outlook.com, Microsoft 365) don't use passwords
+at all – see [Microsoft accounts](microsoft.md). Everything below applies to
+contexts with `auth: password` (the default).
+
 mail-stats needs your IMAP password every time it connects. It never stores
 one by itself – you choose where it comes from.
 
@@ -74,7 +78,17 @@ MAIL_STATS_PASSWORD="$(op read 'op://Private/Gmail IMAP/password')" mail-stats g
 ```
 
 Because it applies to every context, set it only for a single command (as
-above) rather than exporting it in your shell.
+above) rather than exporting it in your shell. With `--contexts` / `-A` it is
+used for **all** selected accounts – only useful if they really share one
+password; otherwise give each context its own `passwordCommand` or
+`passwordEnv`.
+
+## Several contexts in one run
+
+With `--contexts` / `-A`, the passwords of all selected contexts are resolved
+**one after the other, before** any mailbox is opened. So 1Password (or any
+other `passwordCommand`) is asked once per context, never in parallel, and a
+missing password fails the command before anything is read.
 
 ## `password` (plain text)
 

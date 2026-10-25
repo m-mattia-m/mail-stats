@@ -9,8 +9,10 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"math/big"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 	"github.com/emersion/go-imap/backend"
 	"github.com/emersion/go-imap/backend/memory"
 	"github.com/emersion/go-imap/server"
+	"github.com/emersion/go-sasl"
 )
 
 // Credentials of the single user of the in-memory backend.
@@ -33,11 +36,61 @@ type Server struct {
 	user backend.User
 }
 
+// Option configures Start.
+type Option func(*server.Server, backend.Backend)
+
+// WithXOAUTH2 lets clients authenticate with AUTHENTICATE XOAUTH2 using
+// token as access token for the user Username.
+func WithXOAUTH2(token string) Option {
+	return func(srv *server.Server, be backend.Backend) {
+		srv.EnableAuth("XOAUTH2", func(conn server.Conn) sasl.Server {
+			return &xoauth2Server{token: token, login: func(username string) error {
+				if username != Username {
+					return errors.New("unknown user")
+				}
+				user, err := be.Login(conn.Info(), Username, Password)
+				if err != nil {
+					return err
+				}
+				ctx := conn.Context()
+				ctx.State = imap.AuthenticatedState
+				ctx.User = user
+				return nil
+			}}
+		})
+	}
+}
+
+// xoauth2Server is the server side of SASL XOAUTH2.
+type xoauth2Server struct {
+	token string
+	login func(username string) error
+}
+
+func (s *xoauth2Server) Next(response []byte) ([]byte, bool, error) {
+	if response == nil {
+		return []byte{}, false, nil // ask for the initial response
+	}
+	var user, auth string
+	for _, kv := range strings.Split(string(response), "\x01") {
+		if v, ok := strings.CutPrefix(kv, "user="); ok {
+			user = v
+		}
+		if v, ok := strings.CutPrefix(kv, "auth="); ok {
+			auth = v
+		}
+	}
+	if auth != "Bearer "+s.token {
+		return nil, true, errors.New("invalid access token")
+	}
+	return nil, true, s.login(user)
+}
+
 // Start serves an empty mailbox (only an empty INBOX) on 127.0.0.1. security
 // is "tls" (implicit TLS), "starttls" or "none"; TLS uses a self-signed
 // certificate, so clients must skip verification. The server is stopped when
 // the test ends.
-func Start(t testing.TB, security string) *Server {
+func Start(t testing.TB, security string, opts ...Option) *Server {
 	t.Helper()
 
 	be := memory.New()
@@ -48,6 +101,9 @@ func Start(t testing.TB, security string) *Server {
 
 	srv := server.New(be)
 	srv.ErrorLog = nopLogger{}
+	for _, opt := range opts {
+		opt(srv, be)
+	}
 	var l net.Listener
 	switch security {
 	case "tls":

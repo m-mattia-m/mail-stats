@@ -58,7 +58,7 @@ func newGetContextsCommand(opts *globalOptions) *cobra.Command {
 				return err
 			}
 			tw := newTable(cmd.OutOrStdout())
-			fmt.Fprintln(tw, "CURRENT\tNAME\tHOST\tPORT\tUSERNAME\tSECURITY")
+			fmt.Fprintln(tw, "CURRENT\tNAME\tHOST\tPORT\tUSERNAME\tSECURITY\tAUTH")
 			for _, c := range cfg.Contexts {
 				current := ""
 				if c.Name == cfg.CurrentContext {
@@ -68,7 +68,11 @@ func newGetContextsCommand(opts *globalOptions) *cobra.Command {
 				if security == "" {
 					security = "tls"
 				}
-				fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%s\t%s\n", current, c.Name, c.Host, c.EffectivePort(), c.Username, security)
+				auth := c.Auth
+				if auth == "" {
+					auth = config.AuthPassword
+				}
+				fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%s\t%s\t%s\n", current, c.Name, c.Host, c.EffectivePort(), c.Username, security, auth)
 			}
 			return tw.Flush()
 		},
@@ -123,7 +127,8 @@ func newSetContextCommand(opts *globalOptions) *cobra.Command {
 		Use:   "set-context NAME",
 		Short: "Create a context or update the given fields of an existing one",
 		Example: `  mail-stats config set-context personal --host imap.example.com --username me@example.com --password-env MAIL_PASSWORD
-  mail-stats config set-context work --password-command "op read op://Work/imap/password"`,
+  mail-stats config set-context work --password-command "op read op://Work/imap/password"
+  mail-stats config set-context hotmail --host outlook.office365.com --username me@hotmail.com --auth oauth2 --oauth2-client-id <app-id>`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, path, err := opts.loadConfig()
@@ -164,6 +169,21 @@ func newSetContextCommand(opts *globalOptions) *cobra.Command {
 			if flags.Changed("exclude-folder") {
 				ctx.ExcludeFolders = c.ExcludeFolders
 			}
+			if flags.Changed("auth") {
+				ctx.Auth = c.Auth
+			}
+			if flags.Changed("oauth2-client-id") {
+				ctx.OAuth2.ClientID = c.OAuth2.ClientID
+			}
+			if flags.Changed("oauth2-tenant") {
+				ctx.OAuth2.Tenant = c.OAuth2.Tenant
+			}
+			if flags.Changed("oauth2-scope") {
+				ctx.OAuth2.Scopes = c.OAuth2.Scopes
+			}
+			if flags.Changed("oauth2-token-command") {
+				ctx.OAuth2.TokenCommand = c.OAuth2.TokenCommand
+			}
 			if err := ctx.Validate(); err != nil {
 				return err
 			}
@@ -193,6 +213,11 @@ func newSetContextCommand(opts *globalOptions) *cobra.Command {
 	f.BoolVar(&c.InsecureSkipVerify, "insecure-skip-verify", false, "do not verify the server's TLS certificate")
 	f.StringSliceVar(&c.SentFolders, "sent-folder", nil, "folder to count as sent, in addition to the detected ones (repeatable)")
 	f.StringSliceVar(&c.ExcludeFolders, "exclude-folder", nil, "folder to leave out of the stats (repeatable)")
+	f.StringVar(&c.Auth, "auth", "", "login method: password (default) or oauth2 (Microsoft: Outlook.com, Hotmail, Microsoft 365)")
+	f.StringVar(&c.OAuth2.ClientID, "oauth2-client-id", "", "OAuth2: Application (client) ID of your Microsoft app registration")
+	f.StringVar(&c.OAuth2.Tenant, "oauth2-tenant", "", "OAuth2: consumers (default, personal accounts), organizations, common or a tenant ID")
+	f.StringSliceVar(&c.OAuth2.Scopes, "oauth2-scope", nil, "OAuth2: scopes to request (default IMAP.AccessAsUser.All + offline_access)")
+	f.StringVar(&c.OAuth2.TokenCommand, "oauth2-token-command", "", "OAuth2: shell command that prints an access token (instead of `mail-stats auth login`)")
 	return cmd
 }
 

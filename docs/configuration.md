@@ -34,7 +34,7 @@ contexts:
     # Gmail: "All Mail", "Starred" and "Important" are excluded automatically.
 
   - name: work
-    host: outlook.office365.com
+    host: mail.example.com
     username: me@work.com
     passwordEnv: WORK_MAIL_PW
     sentFolders:
@@ -50,7 +50,17 @@ contexts:
     security: starttls
     insecureSkipVerify: true      # Proton Mail Bridge uses a self-signed certificate
     passwordCommand: op read "op://Private/Proton Bridge/password"
+
+  - name: hotmail                 # Microsoft: OAuth2 instead of a password
+    host: outlook.office365.com
+    username: me@hotmail.com
+    auth: oauth2
+    oauth2:
+      clientId: 1b2c3d4e-0000-0000-0000-000000000000
 ```
+
+Tokens of `auth: oauth2` contexts are stored in a `tokens/` directory next to
+the config file (see [Microsoft](microsoft.md#where-tokens-are-stored)).
 
 ## Fields
 
@@ -76,6 +86,15 @@ contexts:
 | `insecureSkipVerify` | bool | no | `false` | Accept any TLS certificate. Only for local bridges with self-signed certificates – it makes the connection open to interception. |
 | `sentFolders` | list of strings | no | `[]` | Full folder names (as shown by `get folders`) to count as **sent**, in addition to the automatically detected ones. Case-insensitive. |
 | `excludeFolders` | list of strings | no | `[]` | Full folder names not to count at all. Case-insensitive. Wins over `sentFolders` and the automatic detection. |
+| `auth` | string | no | `password` | `password`: IMAP LOGIN with the password from the fields above. `oauth2`: IMAP AUTHENTICATE XOAUTH2 with an access token – required for Microsoft accounts, see [Microsoft](microsoft.md). |
+| `oauth2.clientId` | string | for `auth login` | | Application (client) ID of your Microsoft app registration |
+| `oauth2.tenant` | string | no | `consumers` | `consumers` (Hotmail/Outlook.com/Live), `organizations`, `common`, or a tenant ID/domain |
+| `oauth2.scopes` | list of strings | no | `https://outlook.office.com/IMAP.AccessAsUser.All`, `offline_access` | OAuth2 scopes to request |
+| `oauth2.tokenCommand` | string | instead of `clientId` | | Shell command printing an access token (external token tool); replaces `auth login` |
+| `oauth2.provider` | string | no | `microsoft` | Identity provider; only `microsoft` is built in |
+
+With `auth: oauth2` the password fields are ignored, and either
+`oauth2.clientId` or `oauth2.tokenCommand` must be set.
 
 Folder names are the full path including the parent, with the server's
 separator: `Archive/Outgoing` on most servers, `INBOX.Archive.Outgoing` on

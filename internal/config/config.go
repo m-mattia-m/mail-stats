@@ -20,6 +20,37 @@ const EnvConfig = "MAIL_STATS_CONFIG"
 // EnvPassword overrides the password of whichever context is used.
 const EnvPassword = "MAIL_STATS_PASSWORD"
 
+// Authentication methods of a context.
+const (
+	// AuthPassword logs in with username and password (IMAP LOGIN).
+	AuthPassword = "password"
+	// AuthOAuth2 logs in with an OAuth2 access token (IMAP AUTHENTICATE
+	// XOAUTH2), required by Microsoft (Outlook.com, Hotmail, Microsoft 365).
+	AuthOAuth2 = "oauth2"
+)
+
+// ProviderMicrosoft is the Microsoft identity platform, the only built-in
+// OAuth2 provider.
+const ProviderMicrosoft = "microsoft"
+
+// OAuth2 configures how a context gets its access tokens: either the built-in
+// device-code login (`mail-stats auth login`) with ClientID, or an external
+// TokenCommand.
+type OAuth2 struct {
+	// Provider is microsoft (default).
+	Provider string `yaml:"provider,omitempty"`
+	// ClientID is the "Application (client) ID" of your app registration.
+	ClientID string `yaml:"clientId,omitempty"`
+	// Tenant is consumers (default: Outlook.com/Hotmail/Live), organizations,
+	// common, or a Microsoft 365 tenant ID/domain.
+	Tenant string `yaml:"tenant,omitempty"`
+	// Scopes default to IMAP access plus offline_access (for refresh tokens).
+	Scopes []string `yaml:"scopes,omitempty"`
+	// TokenCommand is run with `sh -c`; its trimmed stdout is used as access
+	// token. Replaces the built-in login.
+	TokenCommand string `yaml:"tokenCommand,omitempty"`
+}
+
 // Context is one IMAP account.
 type Context struct {
 	Name     string `yaml:"name"`
@@ -38,6 +69,14 @@ type Context struct {
 	InsecureSkipVerify bool     `yaml:"insecureSkipVerify,omitempty"`
 	SentFolders        []string `yaml:"sentFolders,omitempty"`
 	ExcludeFolders     []string `yaml:"excludeFolders,omitempty"`
+	// Auth is password (default) or oauth2.
+	Auth   string `yaml:"auth,omitempty"`
+	OAuth2 OAuth2 `yaml:"oauth2,omitempty"`
+}
+
+// UsesOAuth2 reports whether the context logs in with an access token.
+func (ctx Context) UsesOAuth2() bool {
+	return ctx.Auth == AuthOAuth2
 }
 
 // Config is the whole config file.
@@ -173,6 +212,19 @@ func (ctx Context) Validate() error {
 	}
 	if ctx.Port < 0 || ctx.Port > 65535 {
 		return fmt.Errorf("context %q: invalid port %d", ctx.Name, ctx.Port)
+	}
+	switch ctx.Auth {
+	case "", AuthPassword:
+		return nil
+	case AuthOAuth2:
+	default:
+		return fmt.Errorf("context %q: unknown auth %q (want password or oauth2)", ctx.Name, ctx.Auth)
+	}
+	if p := ctx.OAuth2.Provider; p != "" && p != ProviderMicrosoft {
+		return fmt.Errorf("context %q: unknown oauth2 provider %q (want microsoft)", ctx.Name, p)
+	}
+	if ctx.OAuth2.ClientID == "" && ctx.OAuth2.TokenCommand == "" {
+		return fmt.Errorf("context %q: auth oauth2 needs oauth2.clientId (for `mail-stats auth login`) or oauth2.tokenCommand", ctx.Name)
 	}
 	return nil
 }

@@ -8,13 +8,16 @@ package cli
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/m-mattia-m/mail-stats/internal/config"
 	"github.com/m-mattia-m/mail-stats/internal/mailbox"
+	"github.com/m-mattia-m/mail-stats/internal/oauth"
 )
 
 // Session is an open mailbox connection.
@@ -32,6 +35,10 @@ type Deps struct {
 	Now        func() time.Time
 	Dial       func(mailbox.Account) (Session, error)
 	Version    string
+	// OAuthAuthority and HTTPClient point the OAuth2 token requests
+	// elsewhere (tests); empty/nil means the Microsoft identity platform.
+	OAuthAuthority string
+	HTTPClient     *http.Client
 }
 
 // DefaultDeps returns the dependencies of the real binary.
@@ -92,7 +99,7 @@ func NewRootCommand(d Deps) *cobra.Command {
 	pf.StringVarP(&opts.output, "output", "o", "table", "output format: table, json or yaml")
 	pf.DurationVar(&opts.timeout, "timeout", 30*time.Second, "IMAP connection and command timeout")
 
-	root.AddCommand(newGetCommand(d, opts), newConfigCommand(opts), newVersionCommand(d))
+	root.AddCommand(newGetCommand(d, opts), newConfigCommand(opts), newAuthCommand(d, opts), newVersionCommand(d))
 	return root
 }
 
@@ -113,6 +120,17 @@ func (o *globalOptions) loadConfig() (*config.Config, string, error) {
 		return nil, "", err
 	}
 	return cfg, path, nil
+}
+
+// oauthManager stores OAuth2 tokens in a "tokens" directory next to the
+// config file.
+func oauthManager(d Deps, configPath string) *oauth.Manager {
+	return &oauth.Manager{
+		Authority:  d.OAuthAuthority,
+		HTTPClient: d.HTTPClient,
+		TokenDir:   filepath.Join(filepath.Dir(configPath), "tokens"),
+		RunCommand: d.RunCommand,
+	}
 }
 
 func newVersionCommand(d Deps) *cobra.Command {

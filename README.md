@@ -24,6 +24,7 @@ Full documentation is in [`docs/`](docs/README.md):
 [contexts](docs/contexts.md) ·
 [config file](docs/configuration.md) ·
 [passwords](docs/passwords.md) ·
+[Microsoft / Hotmail](docs/microsoft.md) ·
 [1Password CLI](docs/1password.md) ·
 [how stats are calculated](docs/statistics.md) ·
 [container](docs/container.md) ·
@@ -61,7 +62,7 @@ mail-stats config set-context personal \
   --host imap.example.com --username me@example.com \
   --password-command "op read op://Private/imap/password"
 
-mail-stats config set-context work --host outlook.office365.com \
+mail-stats config set-context work --host mail.example.com \
   --username me@work.com --password-env WORK_MAIL_PASSWORD
 
 mail-stats config get-contexts
@@ -74,7 +75,15 @@ mail-stats config delete-context work
 mail-stats get stats
 mail-stats get stats --context personal --since 2024-01-01 --until 2024-12-31
 mail-stats get stats -o json      # or -o yaml (includes the per-folder counts)
+mail-stats get stats --contexts personal,work   # several accounts + a combined row
+mail-stats get stats -A                         # every context
 mail-stats get folders
+
+# Microsoft accounts (Hotmail, Outlook.com, Microsoft 365) use OAuth2, see docs/microsoft.md
+mail-stats config set-context hotmail --host outlook.office365.com --username me@hotmail.com \
+  --auth oauth2 --oauth2-client-id <your-app-client-id>
+mail-stats auth login hotmail
+mail-stats auth status
 
 mail-stats version
 ```

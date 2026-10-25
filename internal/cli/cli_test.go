@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/m-mattia-m/mail-stats/internal/config"
 	"github.com/m-mattia-m/mail-stats/internal/imaptest"
 	"github.com/m-mattia-m/mail-stats/internal/mailbox"
+	"github.com/m-mattia-m/mail-stats/internal/oauthtest"
 )
 
 var now = time.Date(2024, 3, 1, 12, 0, 0, 0, time.UTC)
@@ -24,12 +26,14 @@ type harness struct {
 	t          *testing.T
 	configPath string
 	env        map[string]string
+	oauth      *oauthtest.Server
+	mu         sync.Mutex // Dial runs concurrently for several contexts
 	dialed     []mailbox.Account
 	dialErr    error
 }
 
 func newHarness(t *testing.T) *harness {
-	return &harness{t: t, configPath: filepath.Join(t.TempDir(), "config.yaml"), env: map[string]string{}}
+	return &harness{t: t, configPath: filepath.Join(t.TempDir(), "config.yaml"), env: map[string]string{}, oauth: oauthtest.Start(t)}
 }
 
 func (h *harness) deps(out, errOut *bytes.Buffer) Deps {
@@ -40,13 +44,18 @@ func (h *harness) deps(out, errOut *bytes.Buffer) Deps {
 		RunCommand: func(string) (string, error) { return "", errors.New("not allowed in tests") },
 		Now:        func() time.Time { return now },
 		Dial: func(acc mailbox.Account) (Session, error) {
+			h.mu.Lock()
 			h.dialed = append(h.dialed, acc)
-			if h.dialErr != nil {
-				return nil, h.dialErr
+			dialErr := h.dialErr
+			h.mu.Unlock()
+			if dialErr != nil {
+				return nil, dialErr
 			}
 			return mailbox.Dial(acc)
 		},
-		Version: "v1.2.3",
+		Version:        "v1.2.3",
+		OAuthAuthority: h.oauth.URL,
+		HTTPClient:     h.oauth.Client,
 	}
 }
 
@@ -245,9 +254,9 @@ func TestConfigLifecycle(t *testing.T) {
 
 	out := h.mustRun("config", "get-contexts")
 	for _, want := range []string{
-		"CURRENT   NAME       HOST               PORT   USERNAME         SECURITY",
-		"*         personal   imap.example.com   1993   me@example.com   tls",
-		"          work       mail.work          1143   me               starttls",
+		"CURRENT   NAME       HOST               PORT   USERNAME         SECURITY   AUTH",
+		"*         personal   imap.example.com   1993   me@example.com   tls        password",
+		"          work       mail.work          1143   me               starttls   password",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("get-contexts missing %q:\n%s", want, out)
