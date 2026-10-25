@@ -73,7 +73,7 @@ jobs:
           grep total: coverage.txt
 
       - name: check test coverage
-        uses: vladopajic/go-test-coverage@v2
+        uses: vladopajic/go-test-coverage@v2201
         with:
           profile: coverage.out
           threshold-total: 80
