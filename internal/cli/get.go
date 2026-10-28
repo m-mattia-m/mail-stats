@@ -189,30 +189,32 @@ func parseDate(flag, value string) (time.Time, error) {
 func printStatsTable(w io.Writer, ctx *config.Context, r stats.Report) error {
 	tw := newTable(w)
 	fmt.Fprintf(tw, "CONTEXT:\t%s (%s)\n", ctx.Name, accountLabel(ctx))
-	fmt.Fprintf(tw, "PERIOD:\t%s\n\n", periodLabel(r))
+	fmt.Fprintf(tw, "PERIOD:\t%s\n", periodLabel(r))
+	fmt.Fprintf(tw, "BUSIEST DAY:\t%s\n\n", busiestDayLabel(r.BusiestDay))
 	if err := tw.Flush(); err != nil {
 		return err
 	}
 
 	tw = newTable(w)
-	fmt.Fprintln(tw, "DIRECTION\tTOTAL\tPER DAY\tPER WEEK\tPER MONTH\tFIRST\tLAST")
+	fmt.Fprintln(tw, "DIRECTION\tTOTAL\tPER DAY\tPER WEEK\tPER MONTH\tFIRST\tLAST\tBUSIEST DAY")
 	writeSummaryRows(tw, "", r)
 	return tw.Flush()
 }
 
 func printMultiStatsTable(w io.Writer, results []contextResult, out multiStatsOutput) error {
 	tw := newTable(w)
-	fmt.Fprintln(tw, "CONTEXT\tACCOUNT\tPERIOD")
+	fmt.Fprintln(tw, "CONTEXT\tACCOUNT\tPERIOD\tBUSIEST DAY")
 	for i, r := range results {
-		fmt.Fprintf(tw, "%s\t%s\t%s\n", r.ctx.Name, accountLabel(r.ctx), periodLabel(out.Contexts[i].Stats))
+		report := out.Contexts[i].Stats
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", r.ctx.Name, accountLabel(r.ctx), periodLabel(report), busiestDayLabel(report.BusiestDay))
 	}
-	fmt.Fprintf(tw, "%s\t%s\t%s\n\n", combinedName, fmt.Sprintf("%d accounts", len(results)), periodLabel(out.Combined))
+	fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n\n", combinedName, fmt.Sprintf("%d accounts", len(results)), periodLabel(out.Combined), busiestDayLabel(out.Combined.BusiestDay))
 	if err := tw.Flush(); err != nil {
 		return err
 	}
 
 	tw = newTable(w)
-	fmt.Fprintln(tw, "CONTEXT\tDIRECTION\tTOTAL\tPER DAY\tPER WEEK\tPER MONTH\tFIRST\tLAST")
+	fmt.Fprintln(tw, "CONTEXT\tDIRECTION\tTOTAL\tPER DAY\tPER WEEK\tPER MONTH\tFIRST\tLAST\tBUSIEST DAY")
 	for _, c := range out.Contexts {
 		writeSummaryRows(tw, c.Context+"\t", c.Stats)
 	}
@@ -227,8 +229,8 @@ func writeSummaryRows(w io.Writer, prefix string, r stats.Report) {
 		name string
 		s    stats.Summary
 	}{{"sent", r.Sent}, {"received", r.Received}} {
-		fmt.Fprintf(w, "%s%s\t%d\t%.2f\t%.2f\t%.2f\t%s\t%s\n",
-			prefix, row.name, row.s.Total, row.s.PerDay, row.s.PerWeek, row.s.PerMonth, formatDate(row.s.First), formatDate(row.s.Last))
+		fmt.Fprintf(w, "%s%s\t%d\t%.2f\t%.2f\t%.2f\t%s\t%s\t%s\n",
+			prefix, row.name, row.s.Total, row.s.PerDay, row.s.PerWeek, row.s.PerMonth, formatDate(row.s.First), formatDate(row.s.Last), dayLabel(row.s.BusiestDay))
 	}
 }
 
@@ -238,6 +240,22 @@ func accountLabel(ctx *config.Context) string {
 
 func periodLabel(r stats.Report) string {
 	return fmt.Sprintf("%s – %s (%.0f days)", r.From.Format(dateLayout), r.To.Format(dateLayout), r.Days)
+}
+
+// busiestDayLabel renders e.g. "2024-01-15 (14 mails: 3 sent, 11 received)".
+func busiestDayLabel(d *stats.BusiestDay) string {
+	if d == nil {
+		return "-"
+	}
+	return fmt.Sprintf("%s (%d mails: %d sent, %d received)", d.Date, d.Total, d.Sent, d.Received)
+}
+
+// dayLabel renders e.g. "2024-01-15 (11)".
+func dayLabel(d *stats.Day) string {
+	if d == nil {
+		return "-"
+	}
+	return fmt.Sprintf("%s (%d)", d.Date, d.Count)
 }
 
 func formatDate(t *time.Time) string {

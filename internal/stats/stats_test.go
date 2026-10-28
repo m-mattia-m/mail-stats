@@ -96,3 +96,62 @@ func TestEndOfDay(t *testing.T) {
 		t.Fatalf("EndOfDay = %v, want %v", got, want)
 	}
 }
+
+func at(y int, m time.Month, d, h int) time.Time {
+	return time.Date(y, m, d, h, 0, 0, 0, time.UTC)
+}
+
+func TestCompute_BusiestDays(t *testing.T) {
+	sent := []time.Time{at(2024, 1, 2, 9), at(2024, 1, 3, 9), at(2024, 1, 3, 15), at(2024, 1, 5, 8)}
+	received := []time.Time{
+		at(2024, 1, 1, 8), at(2024, 1, 1, 9), at(2024, 1, 1, 10), // 3 received on the 1st
+		at(2024, 1, 5, 8), at(2024, 1, 5, 9), at(2024, 1, 5, 10), // 3 received + 1 sent on the 5th
+	}
+
+	r := Compute(sent, received, Options{Now: at(2024, 2, 1, 0), Location: time.UTC})
+
+	if d := r.Sent.BusiestDay; d == nil || *d != (Day{Date: "2024-01-03", Count: 2}) {
+		t.Errorf("sent busiest = %+v", d)
+	}
+	// The 1st and 5th tie with 3 received; the earlier day wins.
+	if d := r.Received.BusiestDay; d == nil || *d != (Day{Date: "2024-01-01", Count: 3}) {
+		t.Errorf("received busiest = %+v", d)
+	}
+	// Overall the 5th wins: 1 sent + 3 received beats 3 received on the 1st.
+	if d := r.BusiestDay; d == nil || *d != (BusiestDay{Date: "2024-01-05", Total: 4, Sent: 1, Received: 3}) {
+		t.Errorf("overall busiest = %+v", d)
+	}
+}
+
+func TestCompute_BusiestDayUsesLocation(t *testing.T) {
+	// 23:30 UTC is already the next day in Zurich (UTC+1 in January).
+	zurich := time.FixedZone("CET", 3600)
+	received := []time.Time{time.Date(2024, 1, 1, 23, 30, 0, 0, time.UTC), at(2024, 1, 2, 10)}
+
+	if d := Compute(nil, received, Options{Location: time.UTC}).Received.BusiestDay; d.Date != "2024-01-01" || d.Count != 1 {
+		t.Errorf("UTC busiest = %+v", d)
+	}
+	if d := Compute(nil, received, Options{Location: zurich}).Received.BusiestDay; d.Date != "2024-01-02" || d.Count != 2 {
+		t.Errorf("Zurich busiest = %+v", d)
+	}
+	// Without a location, time.Local is used; it must not panic.
+	if d := Compute(nil, received, Options{}).BusiestDay; d == nil || d.Total < 1 {
+		t.Errorf("local busiest = %+v", d)
+	}
+}
+
+func TestCompute_BusiestDayRespectsWindowAndEmpty(t *testing.T) {
+	received := []time.Time{at(2023, 6, 1, 9), at(2023, 6, 1, 10), at(2024, 1, 10, 9)}
+	r := Compute(nil, received, Options{Since: at(2024, 1, 1, 0), Now: at(2024, 2, 1, 0), Location: time.UTC})
+	if d := r.Received.BusiestDay; d == nil || d.Date != "2024-01-10" {
+		t.Errorf("busiest outside window: %+v", d)
+	}
+	if r.Sent.BusiestDay != nil {
+		t.Errorf("no sent mails: busiest = %+v", r.Sent.BusiestDay)
+	}
+
+	empty := Compute(nil, nil, Options{})
+	if empty.BusiestDay != nil || empty.Sent.BusiestDay != nil || empty.Received.BusiestDay != nil {
+		t.Errorf("empty report has busiest days: %+v", empty)
+	}
+}

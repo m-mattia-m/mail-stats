@@ -8,12 +8,13 @@ month over your whole mail history.
 
 ```
 $ mail-stats get stats
-CONTEXT:   personal (me@example.com @ imap.example.com)
-PERIOD:    2015-03-02 – 2026-10-25 (4255 days)
+CONTEXT:       personal (me@example.com @ imap.example.com)
+PERIOD:        2015-03-02 – 2026-10-25 (4255 days)
+BUSIEST DAY:   2019-11-28 (214 mails: 9 sent, 205 received)
 
-DIRECTION   TOTAL   PER DAY   PER WEEK   PER MONTH   FIRST        LAST
-sent        3120    0.73      5.13       22.30       2015-03-04   2026-10-24
-received    48211   11.33     79.31      344.66      2015-03-02   2026-10-25
+DIRECTION   TOTAL   PER DAY   PER WEEK   PER MONTH   FIRST        LAST         BUSIEST DAY
+sent        3120    0.73      5.13       22.30       2015-03-04   2026-10-24   2021-03-15 (31)
+received    48211   11.33     79.31      344.66      2015-03-02   2026-10-25   2019-11-28 (205)
 ```
 
 ## Documentation
@@ -43,6 +44,7 @@ Full documentation is in [`docs/`](docs/README.md):
   (or `--since`) to now (or `--until`). Total ÷ days, ÷ (days / 7) and
   ÷ (days / 30.44). A period shorter than one week/month counts as one, so a
   few days of history are not extrapolated.
+- The **busiest day** – overall and per direction – is shown too.
 - `mail-stats get folders` shows how each folder was classified.
 
 ## Install

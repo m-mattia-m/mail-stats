@@ -4,6 +4,9 @@ package stats
 
 import "time"
 
+// dateLayout formats the calendar day mails are grouped by.
+const dateLayout = "2006-01-02"
+
 const (
 	// DaysPerWeek is the length of a week in days.
 	DaysPerWeek = 7.0
@@ -17,6 +20,23 @@ type Options struct {
 	Since time.Time
 	Until time.Time
 	Now   time.Time
+	// Location decides which calendar day a mail belongs to when finding the
+	// busiest day; time.Local if nil.
+	Location *time.Location
+}
+
+// Day is the number of mails on one calendar day.
+type Day struct {
+	Date  string `json:"date" yaml:"date"`
+	Count int    `json:"count" yaml:"count"`
+}
+
+// BusiestDay is the calendar day with the most mails of both directions.
+type BusiestDay struct {
+	Date     string `json:"date" yaml:"date"`
+	Total    int    `json:"total" yaml:"total"`
+	Sent     int    `json:"sent" yaml:"sent"`
+	Received int    `json:"received" yaml:"received"`
 }
 
 // Summary holds the counts and averages for one direction (sent/received).
@@ -27,6 +47,8 @@ type Summary struct {
 	PerMonth float64    `json:"perMonth" yaml:"perMonth"`
 	First    *time.Time `json:"first,omitempty" yaml:"first,omitempty"`
 	Last     *time.Time `json:"last,omitempty" yaml:"last,omitempty"`
+	// BusiestDay is the day with the most mails of this direction.
+	BusiestDay *Day `json:"busiestDay,omitempty" yaml:"busiestDay,omitempty"`
 }
 
 // Report is the result of Compute. Sent and Received share the same window
@@ -37,6 +59,8 @@ type Report struct {
 	Days     float64   `json:"days" yaml:"days"`
 	Sent     Summary   `json:"sent" yaml:"sent"`
 	Received Summary   `json:"received" yaml:"received"`
+	// BusiestDay is the day with the most sent plus received mails.
+	BusiestDay *BusiestDay `json:"busiestDay,omitempty" yaml:"busiestDay,omitempty"`
 }
 
 // Compute filters the timestamps to the window described by opts and
@@ -72,17 +96,56 @@ func Compute(sent, received []time.Time, opts Options) Report {
 		days = 0
 	}
 
-	return Report{
+	loc := opts.Location
+	if loc == nil {
+		loc = time.Local
+	}
+	sentPerDay, receivedPerDay := perDay(sent, loc), perDay(received, loc)
+
+	r := Report{
 		From:     from,
 		To:       to,
 		Days:     days,
-		Sent:     summarize(sent, days),
-		Received: summarize(received, days),
+		Sent:     summarize(sent, days, sentPerDay),
+		Received: summarize(received, days, receivedPerDay),
 	}
+
+	both := make(map[string]int, len(sentPerDay)+len(receivedPerDay))
+	for date, n := range sentPerDay {
+		both[date] += n
+	}
+	for date, n := range receivedPerDay {
+		both[date] += n
+	}
+	if d := busiest(both); d != nil {
+		r.BusiestDay = &BusiestDay{Date: d.Date, Total: d.Count, Sent: sentPerDay[d.Date], Received: receivedPerDay[d.Date]}
+	}
+	return r
 }
 
-func summarize(ts []time.Time, days float64) Summary {
-	s := Summary{Total: len(ts)}
+// perDay counts the timestamps per calendar day in loc.
+func perDay(ts []time.Time, loc *time.Location) map[string]int {
+	counts := make(map[string]int)
+	for _, t := range ts {
+		counts[t.In(loc).Format(dateLayout)]++
+	}
+	return counts
+}
+
+// busiest returns the day with the highest count; on a tie the earliest day
+// wins, so the result doesn't depend on map order. Nil if counts is empty.
+func busiest(counts map[string]int) *Day {
+	var best *Day
+	for date, n := range counts {
+		if best == nil || n > best.Count || (n == best.Count && date < best.Date) {
+			best = &Day{Date: date, Count: n}
+		}
+	}
+	return best
+}
+
+func summarize(ts []time.Time, days float64, counts map[string]int) Summary {
+	s := Summary{Total: len(ts), BusiestDay: busiest(counts)}
 	if first, last, ok := bounds(ts); ok {
 		s.First, s.Last = &first, &last
 	}

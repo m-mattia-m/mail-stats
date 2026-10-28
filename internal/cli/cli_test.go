@@ -115,15 +115,17 @@ func TestGetStats_Table(t *testing.T) {
 	h.withServer()
 
 	out := h.mustRun("get", "stats")
-	for _, want := range []string{
-		"CONTEXT:   test (username @ 127.0.0.1)",
-		"PERIOD:    2024-01-01 – 2024-03-01 (60 days)",
-		"DIRECTION   TOTAL   PER DAY   PER WEEK   PER MONTH   FIRST        LAST",
-		"sent        3       0.05      0.35       1.52        2024-01-02   2024-01-17",
-		"received    6       0.10      0.70       3.04        2024-01-01   2024-01-31",
+	// Every day has at most one mail, so the earliest day wins the tie.
+	for _, want := range [][]string{
+		{"CONTEXT:", "test", "(username", "@", "127.0.0.1)"},
+		{"PERIOD:", "2024-01-01", "–", "2024-03-01", "(60", "days)"},
+		{"BUSIEST", "DAY:", "2024-01-01", "(1", "mails:", "0", "sent,", "1", "received)"},
+		{"DIRECTION", "TOTAL", "PER", "DAY", "PER", "WEEK", "PER", "MONTH", "FIRST", "LAST", "BUSIEST", "DAY"},
+		{"sent", "3", "0.05", "0.35", "1.52", "2024-01-02", "2024-01-17", "2024-01-02", "(1)"},
+		{"received", "6", "0.10", "0.70", "3.04", "2024-01-01", "2024-01-31", "2024-01-01", "(1)"},
 	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("output missing %q:\n%s", want, out)
+		if !hasRow(out, want...) {
+			t.Errorf("output has no row %v:\n%s", want, out)
 		}
 	}
 	if len(h.dialed) != 1 || h.dialed[0].Password != imaptest.Password || h.dialed[0].Timeout != 30*time.Second {

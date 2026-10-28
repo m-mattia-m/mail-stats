@@ -63,17 +63,22 @@ mail-stats get stats -A
 Table output:
 
 ```
-CONTEXT:   personal (me@example.com @ imap.example.com)
-PERIOD:    2015-03-02 – 2026-10-25 (4255 days)
+CONTEXT:       personal (me@example.com @ imap.example.com)
+PERIOD:        2015-03-02 – 2026-10-25 (4255 days)
+BUSIEST DAY:   2019-11-28 (214 mails: 9 sent, 205 received)
 
-DIRECTION   TOTAL   PER DAY   PER WEEK   PER MONTH   FIRST        LAST
-sent        3120    0.73      5.13       22.30       2015-03-04   2026-10-24
-received    48211   11.33     79.31      344.66      2015-03-02   2026-10-25
+DIRECTION   TOTAL   PER DAY   PER WEEK   PER MONTH   FIRST        LAST         BUSIEST DAY
+sent        3120    0.73      5.13       22.30       2015-03-04   2026-10-24   2021-03-15 (31)
+received    48211   11.33     79.31      344.66      2015-03-02   2026-10-25   2019-11-28 (205)
 ```
 
 - **PERIOD** – the window all averages are based on (see [statistics](statistics.md)).
 - **TOTAL** – number of mails in the window.
 - **FIRST / LAST** – the oldest and newest mail of that direction in the window.
+- **BUSIEST DAY** (header) – the calendar day with the most mails, sent and
+  received together, with the split.
+- **BUSIEST DAY** (column) – the day with the most mails of that direction
+  and its count. See [busiest day](statistics.md#busiest-day).
 
 JSON / YAML output also contains every folder with its role and message count:
 
@@ -86,9 +91,12 @@ JSON / YAML output also contains every folder with its role and message count:
     "days": 4255.07,
     "sent": {
       "total": 3120, "perDay": 0.73, "perWeek": 5.13, "perMonth": 22.30,
-      "first": "2015-03-04T09:00:00Z", "last": "2026-10-24T18:30:00Z"
+      "first": "2015-03-04T09:00:00Z", "last": "2026-10-24T18:30:00Z",
+      "busiestDay": { "date": "2021-03-15", "count": 31 }
     },
-    "received": { "total": 48211, "perDay": 11.33, "perWeek": 79.31, "perMonth": 344.66, "first": "…", "last": "…" }
+    "received": { "total": 48211, "perDay": 11.33, "perWeek": 79.31, "perMonth": 344.66, "first": "…", "last": "…",
+                  "busiestDay": { "date": "2019-11-28", "count": 205 } },
+    "busiestDay": { "date": "2019-11-28", "total": 214, "sent": 9, "received": 205 }
   },
   "folders": [
     { "name": "INBOX", "role": "received", "messages": 40012 },
@@ -107,18 +115,18 @@ one thing at a time). The output then has one row pair per account plus a
 
 ```
 $ mail-stats get stats --contexts personal,work
-CONTEXT      ACCOUNT                               PERIOD
-personal     me@gmail.com @ imap.gmail.com         2015-03-02 – 2026-10-25 (4255 days)
-work         me@work.com @ outlook.office365.com   2021-06-01 – 2026-10-25 (1972 days)
-(combined)   2 accounts                            2015-03-02 – 2026-10-25 (4255 days)
+CONTEXT      ACCOUNT                          PERIOD                                BUSIEST DAY
+personal     me@gmail.com @ imap.gmail.com    2015-03-02 – 2026-10-25 (4255 days)   2019-11-28 (214 mails: 9 sent, 205 received)
+work         me@work.com @ mail.example.com   2021-06-01 – 2026-10-25 (1972 days)   2024-09-02 (187 mails: 41 sent, 146 received)
+(combined)   2 accounts                       2015-03-02 – 2026-10-25 (4255 days)   2024-09-02 (231 mails: 44 sent, 187 received)
 
-CONTEXT      DIRECTION   TOTAL   PER DAY   PER WEEK   PER MONTH   FIRST        LAST
-personal     sent        3120    0.73      5.13       22.30       2015-03-04   2026-10-24
-personal     received    48211   11.33     79.31      344.66      2015-03-02   2026-10-25
-work         sent        5410    2.74      19.20      83.50       2021-06-01   2026-10-24
-work         received    30122   15.27     106.92     464.93      2021-06-01   2026-10-25
-(combined)   sent        8530    2.00      14.03      61.01       2015-03-04   2026-10-24
-(combined)   received    78333   18.41     128.86     560.34      2015-03-02   2026-10-25
+CONTEXT      DIRECTION   TOTAL   PER DAY   PER WEEK   PER MONTH   FIRST        LAST         BUSIEST DAY
+personal     sent        3120    0.73      5.13       22.30       2015-03-04   2026-10-24   2021-03-15 (31)
+personal     received    48211   11.33     79.31      344.66      2015-03-02   2026-10-25   2019-11-28 (205)
+work         sent        5410    2.74      19.20      83.50       2021-06-01   2026-10-24   2024-09-02 (41)
+work         received    30122   15.27     106.92     464.93      2021-06-01   2026-10-25   2024-09-02 (146)
+(combined)   sent        8530    2.00      14.03      61.01       2015-03-04   2026-10-24   2024-09-02 (44)
+(combined)   received    78333   18.41     128.86     560.34      2015-03-02   2026-10-25   2019-11-28 (205)
 ```
 
 - Each account is averaged over **its own** history (an account you opened

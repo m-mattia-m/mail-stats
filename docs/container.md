@@ -31,6 +31,10 @@ must be readable by UID 1001 in the container – if you get a permission
 error on `/config/config.yaml`, add `--userns=keep-id` (podman) or
 `--user "$(id -u)"`.
 
+The busiest day is counted in calendar days of the container's timezone,
+which is UTC. Pass your own with `-e TZ=Europe/Zurich` (the timezone database
+is built into the binary).
+
 ## Passwords in the container
 
 The image does **not** contain the 1Password CLI, so a context with

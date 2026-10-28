@@ -102,6 +102,34 @@ Oldest mail 2024-01-01, now 2024-03-01 → 60 days.
 | sent | 3 / 60 = 0.05 | 3 / 8.57 = 0.35 | 3 / 1.97 = 1.52 |
 | received | 6 / 60 = 0.10 | 6 / 8.57 = 0.70 | 6 / 1.97 = 3.04 |
 
+## Busiest day
+
+`get stats` also shows the **busiest day**: the calendar day with the most
+mails in the window.
+
+- **Overall** (`BUSIEST DAY:` line, `stats.busiestDay` in JSON): sent and
+  received counted together, shown with the split, e.g.
+  `2019-11-28 (214 mails: 9 sent, 205 received)`.
+- **Per direction** (`BUSIEST DAY` column, `sent.busiestDay` /
+  `received.busiestDay`): the day with the most sent mails and the day with
+  the most received mails, each with its count. These can be different days
+  from each other and from the overall one.
+- **Several accounts** (`--contexts` / `-A`): every account has its own busiest
+  days, and `(combined)` adds the accounts up per day – so the combined
+  busiest day can be a day that wasn't the busiest of any single account.
+
+Details:
+
+- Days are **calendar days in your local timezone** (the machine's `TZ`):
+  a mail received at 23:30 UTC counts for the next day in Zurich. In the
+  container the timezone is UTC unless you pass `-e TZ=Europe/Zurich`.
+- The same rules as for the averages apply: only mails in the window
+  (`--since`/`--until`) and only counted folders (no drafts, no excluded
+  folders).
+- On a tie, the **earliest** day is shown.
+- With no mails in the window there is no busiest day (`-` in the table, the
+  field is left out in JSON/YAML).
+
 ### Why from the oldest mail and not "only periods with mail"?
 
 The history-wide average answers "how much mail do I deal with on a typical
