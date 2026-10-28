@@ -100,7 +100,7 @@ jobs:
       # runner's apt packages: on Ubuntu 26.04 qemu-user-static is only a
       # virtual package and `apt-get install` refuses to pick a provider.
       - name: Set up QEMU for cross-arch emulation
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
         with:
           platforms: arm64
 
